@@ -8,7 +8,7 @@ from sklearn.feature_selection import SelectFromModel
 from sklearn import learning_curve
 import matplotlib.pyplot as plt
 
-class DataPreprocess():
+class DataPreprocess:
 
     def maxQS_process(self,df, columns, quantile_value=0.95):
         print("maxQS_process")
