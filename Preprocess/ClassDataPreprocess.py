@@ -3,7 +3,7 @@ import numpy as np
 from sklearn.preprocessing import RobustScaler
 from sklearn.preprocessing import PolynomialFeatures
 import seaborn as sns
-from sklearn.ensemble import ExtraTreesClassifier
+from sklearn.ensemble import ExtraTreesClassifier, RandomForestRegressor
 from sklearn.feature_selection import SelectFromModel
 from sklearn import learning_curve
 import matplotlib.pyplot as plt
@@ -206,6 +206,29 @@ class DataPreprocess:
         :return: dataframe with processed nan value
         """
         return df.interpolate()
+
+    # 定义browse_his缺失值预测填充函数
+    def set_missing_browse_his(self,df):
+
+        # 把已有的数值型特征取出来输入到RandomForestRegressor中
+        process_df = df[['browse_his', 'gender', 'job', 'edu', 'marriage', 'family_type']]
+        # 乘客分成已知该特征和未知该特征两部分
+        known = process_df[process_df.browse_his.notnull()].as_matrix()
+        unknown = process_df[process_df.browse_his.isnull()].as_matrix()
+        # X为特征属性值
+        X = known[:, 1:]
+        # y为结果标签值
+        y = known[:, 0]
+        # fit到RandomForestRegressor之中
+        rfr = RandomForestRegressor(random_state=0, n_estimators=2000, n_jobs=-1)
+        rfr.fit(X, y)
+        # 用得到的模型进行未知特征值预测
+        predicted = rfr.predict(unknown[:, 1::])
+        # 用得到的预测结果填补原缺失数据
+        df.loc[(df.browse_his.isnull()), 'browse_his'] = predicted
+        return df, rfr
+
+
 
     def get_distances(self, long1, lat1, long2, lat2):
         """
