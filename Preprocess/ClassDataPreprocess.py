@@ -7,6 +7,7 @@ from sklearn.ensemble import ExtraTreesClassifier
 from sklearn.feature_selection import SelectFromModel
 from sklearn import learning_curve
 import matplotlib.pyplot as plt
+import math
 
 class DataPreprocess:
 
@@ -70,6 +71,7 @@ class DataPreprocess:
         result = pd.concat([df.drop(columns, axis=1), df2], axis=1)
         new_col = df2.columns.values.tolist()
         return result, new_col
+    
     def importancePlot(self, dataflag, flag="label", figure=True):
         '''
         输入 dataframe 绘制影响因子排序及图
@@ -195,6 +197,118 @@ class DataPreprocess:
               round(float(count_tn) / float((count_fp + count_tn)), 3))
         print('FN被分为坏的好:', count_fn, 'TP正确分类的好:', count_tp, '好正确率：',
               round(float(count_tp) / float((count_fn + count_tp)), 3))
+
+
+    def nanaProcess(self,df):
+        """
+        利用插值法填充缺失值
+        :param df: pandas datframe
+        :return: dataframe with processed nan value
+        """
+        return df.interpolate()
+
+    def get_distances(self, long1, lat1, long2, lat2):
+        """
+        根据经纬度获得两点之间的距离
+        :param long1:
+        :param lat1:
+        :param long2:
+        :param lat2:
+        :return: 米
+        """
+        r = 6378137  # 地球半径
+
+        lat1 = lat1 * math.pi / 180.0
+        lat2 = lat2 * math.pi / 180.0
+
+        a = lat1 - lat2
+        b = (long1 - long2) * math.pi / 180.0
+
+        sa2 = math.sin(a / 2.0)
+        sb2 = math.sin(b / 2.0)
+        d = 2 * r * math.asin(math.sqrt(sa2 * sa2 + math.cos(lat1) * math.cos(lat2) * sb2 * sb2))
+        return d
+
+    def get_angles(self, long1, lat1, long2, lat2):
+        """
+        根据经纬度计算两点之间的角度差
+        :param long1:
+        :param lat1:
+        :param long2:
+        :param lat2:
+        :return:
+        """
+        y = math.sin(long2 - long1) * math.cos(lat2)
+
+        x = math.cos(lat1) * math.sin(lat2) - math.sin(lat1) * math.cos(lat2) * math.cos(long2 - long1)
+
+        b = math.atan2(y, x)
+
+        b = math.degrees(b)
+        if b < 0:
+            b = b + 360
+
+        return b
+
+    def read_data(self, address, sep=','):
+        """
+        PANDAS 分批量读取数据
+        :param address:
+        :param sep:
+        :return:
+        """
+        reader = pd.read_csv(address, sep=sep, iterator=True, parse_dates=True)
+        chunks = []
+        loop = True
+        i = 1
+        while loop:
+            try:
+                chunk = reader.get_chunk(30000000)
+                chunks.append(chunk)
+                print(i)
+                i += 1
+            except StopIteration:
+                loop = False
+                print('Iteration is stopped.')
+        data = pd.concat(chunks, ignore_index=True)
+        print("DONE")
+        return data
+
+    def time_shift(self, df, sort_a="uid", sort_b="time"):
+
+        '''
+        首先根据输入的dataframe 中的 uid 和 time 做排序，这样同一个 UID 对应几个 time，通过计算同一个 UID 下
+        对应的各个时间做 shift
+        :param df:
+        :param sort_a: 输入的标识位
+        :param sort_b: 输入的时间变量
+        :return: 只保留了最初和最后时间的 uid 和对应的时间。
+
+        examples:
+        +---+-----+          +----+----------+
+        |uid| time|          |uid |time_shift|
+        +---+-----+          +----+----------+
+        |123| 2011|      =>  |123 |    1     |
+        +---+-----+          +----+----------+
+        |123| 2012|
+        +---+-----+
+        '''
+        count = df[sort_a].value_counts()  # 统计 df 中的每一个元素对应的出现频率
+
+        df.sort_values([sort_a, sort_b])  # 对 uid time  排序
+
+        for i in range(count.shape[0]):
+            value = count.index[i]
+            shift_t = count.values[i] - 1  # 偏移量，一般是依据出现
+            df.ix[df[sort_a] == value, "pre"] = df[df[sort_a] == value][sort_b].shift(shift_t)
+            df.ix[df[sort_a] == value, "days"] = (df['time'] - df['pre']).dt.days
+        # print(df)
+        df_new = df.dropna(how="any")  # 这里只保存有值的，本来不是最大一天的都会有空置
+        print("DONE")
+
+        return df_new
+
+
         
         
         
